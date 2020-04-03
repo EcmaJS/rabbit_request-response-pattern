@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
-var amqp = require('amqplib/callback_api');
+let amqp = require('amqplib/callback_api');
 
-var url = {
+let url = {
     protocol: 'amqp', //amqp or amqps
     username: 'rabbitmq',
     password: 'rabbitmq',
@@ -20,8 +20,8 @@ amqp.connect(url, function(error0, connection) {
             throw error1;
         }
 
-        var queue = 'hello';
-        var msg = 'Hello World!';
+        let queue = 'hello';
+        let msg = 'Hello World!';
 
         channel.assertQueue(queue, {
             durable: false
@@ -33,5 +33,5 @@ amqp.connect(url, function(error0, connection) {
     setTimeout(function() {
         connection.close();
         process.exit(0);
-    }, 500);
+    }, 5000);
 });
