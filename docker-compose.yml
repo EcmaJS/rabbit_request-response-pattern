@@ -1,0 +1,31 @@
+version: '3.1'
+
+services:
+
+  client:
+    image: client
+    restart: always
+    build: ./client
+    ports:
+      - 3001:3001
+
+
+  server:
+    image: server
+    restart: always
+    build: ./server
+    ports:
+      - 3000:3000
+
+  rabbit:
+    image: "rabbitmq:3-management"
+    hostname: "rabbit"
+    environment:
+      RABBITMQ_ERLANG_COOKIE: "SWQOKODSQALRPCLNMEQG"
+      RABBITMQ_DEFAULT_USER: "rabbitmq"
+      RABBITMQ_DEFAULT_PASS: "rabbitmq"
+      RABBITMQ_DEFAULT_VHOST: "/"
+    ports:
+      - 15672:15672
+      - 5672:5672
+
