@@ -1,31 +1,32 @@
 let url = {
-    protocol: 'amqp', //amqp or amqps
+    protocol: 'amqp',
     username: 'rabbitmq',
     password: 'rabbitmq',
     hostname: 'rabbit',
+    // hostname: 'localhost',
     port: 5672,
     vhost: '/'
 };
 
-var q = 'tasks';
+let q = 'request';
 let a = 'response'
 
-var open = require('amqplib').connect(url);
+let obj = {
+  data:"my-data"
+}
+
+let open = require('amqplib').connect(url);
 
 open.then(function(conn) {
   return conn.createChannel();
-}).then(function(ch) {
+}).then(function(ch) {  
   return ch.assertQueue(q).then(function(ok) {
-
-    setInterval(() => {
-    ch.sendToQueue(q, Buffer.from('message from client'), { replyTo: a })
+    ch.sendToQueue(q, Buffer.from(JSON.stringify(obj),'utf-8'), { replyTo: a })
     ch.consume(a, function(msg) {
-        if (msg !== null) {
-          console.log(msg.content.toString(), new Date());
-          ch.ack(msg);
-        }
-  });
-}, 60000)
-
-})
+      if (msg !== null) {
+        console.log(msg.content.toString(), new Date());
+      ch.ack(msg);
+      }
+   });
+ })
 }).catch(console.warn);

@@ -9,7 +9,4 @@ RUN npm install
 
 COPY . .
 
-CMD ["node", "send.js"]
-
-# CMD ["node", "rpc-client.js", "30"]
- 
+CMD ["node", "send.js"] 

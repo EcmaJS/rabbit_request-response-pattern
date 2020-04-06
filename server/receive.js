@@ -1,28 +1,58 @@
 let url = {
-        protocol: 'amqp', //amqp or amqps
-        username: 'rabbitmq',
-        password: 'rabbitmq',
-        hostname: 'rabbit',
-        port: 5672,
-        vhost: '/'
-    };
+  protocol: 'amqp', 
+  username: 'rabbitmq',
+  password: 'rabbitmq',
+  hostname: 'rabbit',
+  // hostname: 'localhost',
+  port: 5672,
+  vhost: '/'
+};
 
-    var q = 'tasks';
-    var a = 'response'
-
-    var open = require('amqplib').connect(url);
+let q = 'request';
+let a = 'response';
+let obj = {
+  title: 'my-data',
+  price: 5
+}
     
-    // Consumer
-    open.then(function(conn) {
-        return conn.createChannel();
-      }).then(function(ch) {
-        return ch.assertQueue(a).then(function(ok) {
-          return ch.consume(q, function(msg) {
-            if (msg !== null) {
-              console.log(msg.content.toString(), new Date());
-              ch.ack(msg);
-              ch.sendToQueue(msg.properties.replyTo, Buffer.from('server response'));
-            }
-          });
-        });
-      }).catch(console.warn);
+
+let open = require('amqplib').connect(url);
+
+async function publishMessage(obj) {
+  open.then(function(conn) {
+    return conn.createChannel();
+  }).then(function(ch) {
+    return ch.assertQueue(a).then(function(ok) {
+      ch.sendToQueue(a, Buffer.from(JSON.stringify(obj),'utf-8'));
+    })
+  }).catch(console.warn);
+}
+
+async function getMessage(ch) {  
+  return ch.assertQueue(a).then(function(ok) {
+    return ch.consume(q, function(msg) {
+      if (msg !== null) {
+        let msgBody = msg.content.toString();
+        console.log(msgBody, new Date());
+        let request = JSON.parse(msgBody);
+        if(request.data == obj.title) {
+          // ch.ack(msg);
+          publishMessage(obj)
+        }
+      }
+    });
+  });
+}
+
+function updateObj() {
+  obj.price = Math.floor(Math.random() * Math.floor(10))
+  publishMessage(obj)
+}
+
+    
+open.then(function(conn) {
+  return conn.createChannel();
+}).then(ch => {getMessage(ch)}
+).catch(console.warn);
+
+setInterval(updateObj, 30000)

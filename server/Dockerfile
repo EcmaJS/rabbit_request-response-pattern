@@ -10,5 +10,3 @@ RUN npm install
 COPY . .
 
 CMD ["node", "receive.js"]
-
-# CMD ["node", "rpc-server.js"]
