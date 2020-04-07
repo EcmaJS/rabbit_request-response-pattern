@@ -1,32 +1,57 @@
-// let url = {
-//     protocol: 'amqp',
-//     username: 'rabbitmq',
-//     password: 'rabbitmq',
-//     hostname: 'rabbit',
-//     // hostname: 'localhost',
-//     port: 5672,
-//     vhost: '/'
-// };
+#!/usr/bin/env node
 
-// let q = 'request';
-// let a = 'response';
+var amqp = require('amqplib/callback_api');
 
-// let obj = {
-//   data:"my-data"
-// }
+let url = {
+    protocol: 'amqp',
+    username: 'rabbitmq',
+    password: 'rabbitmq',
+    // hostname: 'rabbit',
+    hostname: 'localhost',
+    port: 5672,
+    vhost: '/'
+};
 
-// let open = require('amqplib').connect(url);
+function generateUuid() {
+    return Math.random().toString() +
+        Math.random().toString() +
+        Math.random().toString();
+}
 
-// open.then(function(conn) {
-//   return conn.createChannel();
-// }).then(function(ch) {  
-//   return ch.assertQueue(q).then(function(ok) {
-//     ch.sendToQueue(q, Buffer.from(JSON.stringify(obj),'utf-8'), { replyTo: a }, )
-//     ch.consume(a, function(msg) {
-//       if (msg !== null) {
-//         console.log(msg.content.toString(), new Date());
-//         ch.ack(msg);
-//       }
-//    });
-//  })
-// }).catch(console.warn);
+
+
+amqp.connect(url, function(error0, connection) {
+    if (error0) {
+        throw error0;
+    }
+    connection.createChannel(function(error1, channel) {
+        if (error1) {
+            throw error1;
+        }
+        channel.assertQueue('', {
+            exclusive: true
+        }, function(error2, q) {
+            if (error2) {
+                throw error2;
+            }
+            var correlationId = generateUuid();
+            var idObj = 5;
+
+            console.log(' [x] Requesting object with id = %d', idObj);
+
+            channel.consume(q.queue, function(msg) {
+                if (msg.properties.correlationId === correlationId) {
+                    console.log(' [.] Got %s', msg.content);
+                }
+            }, {
+                noAck: true
+            });
+
+            channel.sendToQueue('rpc_queue',
+                Buffer.from(idObj.toString()), {
+                    correlationId: correlationId,
+                    replyTo: q.queue
+                });
+        });
+    });
+});

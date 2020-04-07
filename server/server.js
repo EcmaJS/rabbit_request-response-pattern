@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 const EventEmitter = require('events');
-var amqp = require('amqplib/callback_api');
+const amqp = require('amqplib/callback_api');
 
 const emmiter = new EventEmitter();
 
-let url = {
+const url = {
     protocol: 'amqp',
     username: 'rabbitmq',
     password: 'rabbitmq',
@@ -37,7 +37,7 @@ amqp.connect(url, function(error0, connection) {
         if (error1) {
             throw error1;
         }
-        var queue = 'rpc_queue';
+        const queue = 'rpc_queue';
 
         channel.assertQueue(queue, {
             durable: false
@@ -45,16 +45,17 @@ amqp.connect(url, function(error0, connection) {
         channel.prefetch(1);
         console.log(' [x] Awaiting RPC requests');
         channel.consume(queue, function reply(msg) {
-            var id = parseInt(msg.content.toString());
+            const payload = JSON.parse(msg.content)
+            // const id = parseInt(msg.content.toString());
 
-            console.log(" [.] id = %d", id);
+            console.log(" [.] id = %d", payload.id);
 
-            var r = getObject(id);
+            const r = getObject(payload.id);
 
-            channel.sendToQueue(msg.properties.replyTo,
-                Buffer.from(JSON.stringify(r),'utf-8'), {
-                    correlationId: msg.properties.correlationId
-                });
+            // channel.sendToQueue(msg.properties.replyTo,
+            //     Buffer.from(JSON.stringify(r),'utf-8'), {
+            //         correlationId: msg.properties.correlationId
+            //     });
             
             emmiter.on('change object', obj => {
             channel.sendToQueue(msg.properties.replyTo,
