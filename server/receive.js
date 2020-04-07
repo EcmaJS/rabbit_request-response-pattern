@@ -44,9 +44,13 @@ async function getMessage(ch) {
   });
 }
 
+function trigger (obj) {
+  publishMessage(obj)
+}
+
 function updateObj() {
   obj.price = Math.floor(Math.random() * Math.floor(10))
-  publishMessage(obj)
+  trigger(obj)
 }
 
     

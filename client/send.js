@@ -9,7 +9,7 @@ let url = {
 };
 
 let q = 'request';
-let a = 'response'
+let a = 'response';
 
 let obj = {
   data:"my-data"
@@ -25,7 +25,7 @@ open.then(function(conn) {
     ch.consume(a, function(msg) {
       if (msg !== null) {
         console.log(msg.content.toString(), new Date());
-      ch.ack(msg);
+        ch.ack(msg);
       }
    });
  })
