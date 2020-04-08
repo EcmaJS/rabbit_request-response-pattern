@@ -1,60 +1,69 @@
-// let url = {
-//   protocol: 'amqp',
-//   username: 'rabbitmq',
-//   password: 'rabbitmq',
-//   hostname: 'rabbit',
-//   // hostname: 'localhost',
-//   port: 5672,
-//   vhost: '/'
-// };
+#!/usr/bin/env node
+const EventEmitter = require("events");
+const amqp = require("amqplib/callback_api");
 
-// let q = 'request';
-// let a = 'response';
-// let obj = {
-//   title: 'my-data',
-//   price: 5
-// }
+const emmiter = new EventEmitter();
 
-// let open = require('amqplib').connect(url);
+const url = {
+  protocol: "amqp",
+  username: "rabbitmq",
+  password: "rabbitmq",
+  // hostname: 'rabbit',
+  hostname: "localhost",
+  port: 5672,
+  vhost: "/"
+};
 
-// async function publishMessage(obj) {
-//   open.then(function(conn) {
-//     return conn.createChannel();
-//   }).then(function(ch) {
-//     return ch.assertQueue(a).then(function(ok) {
-//       ch.sendToQueue(a, Buffer.from(JSON.stringify(obj),'utf-8'));
-//     })
-//   }).catch(console.warn);
-// }
+const object = {
+  id: 5,
+  price: 15
+};
 
-// async function getMessage(ch) {
-//   return ch.assertQueue(a).then(function(ok) {
-//     return ch.consume(q, function(msg) {
-//       if (msg !== null) {
-//         let msgBody = msg.content.toString();
-//         console.log(msgBody, new Date());
-//         let request = JSON.parse(msgBody);
-//         if(request.data == obj.title) {
-//           // ch.ack(msg);
-//           publishMessage(obj)
-//         }
-//       }
-//     });
-//   });
-// }
+function getObject (id) {
+  if (id === object.id) { return object; } else { return "Object not found"; }
+}
 
-// function trigger (obj) {
-//   publishMessage(obj)
-// }
+setInterval(updateObj, 10000);
 
-// function updateObj() {
-//   obj.price = Math.floor(Math.random() * Math.floor(10))
-//   trigger(obj)
-// }
+amqp.connect(url, function (error0, connection) {
+  if (error0) {
+    throw error0;
+  }
+  connection.createChannel(function (error1, channel) {
+    if (error1) {
+      throw error1;
+    }
+    const queue = "rpc_queue";
 
-// open.then(function(conn) {
-//   return conn.createChannel();
-// }).then(ch => {
-//   getMessage(ch)
-//   setInterval(updateObj, 30000)
-// }).catch(console.warn);
+    channel.assertQueue(queue, {
+      durable: false
+    });
+    channel.prefetch(1);
+    console.log(" [x] Awaiting RPC requests");
+    channel.consume(queue, function reply (msg) {
+      const payload = JSON.parse(msg.content);
+
+      console.log(" [.] id = %d", payload.id);
+
+      const r = getObject(payload.id);
+
+      emmiter.on("change object", obj => {
+        channel.sendToQueue(msg.properties.replyTo,
+          Buffer.from(JSON.stringify(r), "utf-8"), {
+            correlationId: msg.properties.correlationId
+          });
+      });
+
+      channel.ack(msg);
+    });
+  });
+});
+
+function trigger (object) {
+  emmiter.emit("change object", object);
+}
+
+function updateObj () {
+  object.price = Math.floor(Math.random() * Math.floor(10));
+  trigger(object);
+}
