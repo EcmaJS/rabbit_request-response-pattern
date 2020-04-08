@@ -1,5 +1,5 @@
 // let url = {
-//   protocol: 'amqp', 
+//   protocol: 'amqp',
 //   username: 'rabbitmq',
 //   password: 'rabbitmq',
 //   hostname: 'rabbit',
@@ -14,7 +14,6 @@
 //   title: 'my-data',
 //   price: 5
 // }
-    
 
 // let open = require('amqplib').connect(url);
 
@@ -28,7 +27,7 @@
 //   }).catch(console.warn);
 // }
 
-// async function getMessage(ch) {  
+// async function getMessage(ch) {
 //   return ch.assertQueue(a).then(function(ok) {
 //     return ch.consume(q, function(msg) {
 //       if (msg !== null) {
@@ -53,12 +52,9 @@
 //   trigger(obj)
 // }
 
-    
 // open.then(function(conn) {
 //   return conn.createChannel();
-// }).then(ch => { 
-//   getMessage(ch) 
+// }).then(ch => {
+//   getMessage(ch)
 //   setInterval(updateObj, 30000)
 // }).catch(console.warn);
-
-
