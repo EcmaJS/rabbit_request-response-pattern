@@ -2,7 +2,7 @@
   "name": "task_2",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "",
   "dependencies": {},
   "devDependencies": {
     "eslint": "^6.8.0",
