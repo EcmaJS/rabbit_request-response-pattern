@@ -9,13 +9,12 @@ services:
   #   ports:
   #     - 3001:3001
 
-
   # server:
   #   image: server
   #   restart: always
   #   build: ./server
   #   ports:
-  #     - 3000:3000
+  #     - 3002:3002
 
   rabbit:
     image: "rabbitmq:3-management"

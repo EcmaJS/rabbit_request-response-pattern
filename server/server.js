@@ -8,8 +8,8 @@ const url = {
   protocol: 'amqp',
   username: 'rabbitmq',
   password: 'rabbitmq',
-  hostname: 'rabbit',
-  // hostname: 'localhost',
+  // hostname: 'rabbit',
+  hostname: 'localhost',
   port: 5672,
   vhost: '/'
 }
