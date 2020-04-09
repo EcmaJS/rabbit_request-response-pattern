@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 const EventEmitter = require("events");
+
 const amqp = require("amqplib/callback_api");
 
-const emmiter = new EventEmitter();
+const emitter = new EventEmitter();
 
 const url = {
   protocol: "amqp",
@@ -14,21 +15,31 @@ const url = {
   vhost: "/"
 };
 
+function generateCucumberId (cucumberList) {
+  const rand = Math.floor(Math.random() * cucumberList.length);
+  return cucumberList[rand].id;
+
+}
+
 function generateUuid () {
   return Math.random().toString() +
         Math.random().toString() +
         Math.random().toString();
 }
 
+
+
 class Rabbit {
-  emmiter = null;
+  emitter = null;
   connection = null;
   channel = null;
   rpc_queue = 'rpc_queue';
   change_gueue = 'change_gueue';
+  ch_gueue = 'ch_gueue'
 
-  constructor (emmiter) {
-    this.emmiter = emmiter;
+
+  constructor (emitter) {
+    this.emitter = emitter;
   }
 
   async connect (url) {
@@ -61,13 +72,11 @@ class Rabbit {
     return await new Promise((resolve, reject) => {
       this.channel.assertQueue(queue, {
         durable: false
-        // exclusive: true
       }, (err, q) => {
         if (err) {
           reject(err);
         } else {
-          // queue = q
-          resolve(q);
+          resolve();
         }
       });
     });
@@ -75,23 +84,23 @@ class Rabbit {
 
   consumeMessage (q) {
     this.channel.consume(q, (msg) => {
-      console.log(JSON.parse(msg.content));
-      this.emmiter.emit(msg.properties.correlationId, msg.content);
+      console.log('[.] Received ', JSON.parse(msg.content));
+      this.emitter.emit(msg.properties.correlationId, msg.content);
     }, { noAck: true });
   }
 
-  async request (payload) {
+  async request (payload, q) {
     return await new Promise((resolve, reject) => {
       const correlationId = generateUuid();
-      this.emmiter.once(correlationId, data => {
+      this.emitter.on(correlationId, data => {
         resolve(JSON.parse(data));
       });
       this.channel.sendToQueue(
-        "rpc_queue",
+        q,
         Buffer.from(JSON.stringify(payload)),
         {
           correlationId: correlationId,
-          replyTo: this.rpc_queue
+          replyTo: q
         }
       );
     });
@@ -99,15 +108,23 @@ class Rabbit {
 }
 
 (async function () {
-  const rabbit = new Rabbit(emmiter);
+  const rabbit = new Rabbit(emitter);
   await rabbit.connect(url);
   await rabbit.channelCreate();
   await rabbit.createQueue(rabbit.rpc_queue);
   rabbit.consumeMessage(rabbit.rpc_queue);
   await rabbit.createQueue(rabbit.change_gueue);
-  const result = await rabbit.request({ id: 5 });
-  console.log("result", result);
-  rabbit.consumeMessage(rabbit.change_gueue);
+  await rabbit.createQueue(rabbit.ch_gueue);
+  const result = await rabbit.request('get cucumber', rabbit.rpc_queue);
+  const idSubscriptionCucumber = generateCucumberId(result);
+  rabbit.consumeMessage(rabbit.change_queue);
+  await rabbit.request({id: idSubscriptionCucumber}, rabbit.change_gueue);
+  setInterval(async() => {
+    const idSubscriptionCucumber1 = generateCucumberId(result);
+    rabbit.consumeMessage(rabbit.change_queue);
+    await rabbit.request({id: idSubscriptionCucumber1}, rabbit.change_gueue);
+  }, 15000)
+
 })().catch((err) => {
   console.log(err);
 });

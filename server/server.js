@@ -2,7 +2,7 @@
 const EventEmitter = require('events')
 const amqp = require('amqplib/callback_api')
 
-const emmiter = new EventEmitter()
+const emitter = new EventEmitter()
 
 const url = {
   protocol: 'amqp',
@@ -19,19 +19,22 @@ const object = {
   price: 15
 }
 
+const listCucumbers = require('./cucumbers');
+
 function getObject (id) {
   if (id === object.id) { return object } else { return 'Object not found' }
 }
 
 class Rabbit {
-  emmiter = null;
+  emitter = null;
   connection = null;
   channel = null;
   rpc_queue = 'rpc_queue';
   change_gueue = 'change_gueue';
+  ch_gueue = 'ch_gueue'
 
-  constructor (emmiter) {
-    this.emmiter = emmiter
+  constructor (emitter) {
+    this.emitter = emitter
   }
 
   async connect (url) {
@@ -68,7 +71,7 @@ class Rabbit {
         if (err) {
           reject(err)
         } else {
-          resolve(q)
+          resolve()
         }
       })
       this.channel.prefetch(1)
@@ -83,8 +86,9 @@ class Rabbit {
           correlationId: msg.properties.correlationId,
           content: JSON.parse(msg.content)
         }
-        console.log(' [.] id = %d', payload.content.id)
-
+        console.log('[.] ', payload.content)
+        this.emitter.emit('delete', payload)
+        this.emitter.emit('subscribe', payload)
         this.channel.ack(msg)
         resolve(payload)
       })
@@ -92,44 +96,66 @@ class Rabbit {
   }
 
   sendChange (obj, correlationId) {
-    console.log('[.] Sent ', obj)
-    this.channel.sendToQueue(this.change_gueue,
+    console.log('[.] Sent change ', obj)
+    this.channel.sendToQueue(this.ch_gueue,
       Buffer.from(JSON.stringify(obj), 'utf-8'), {
         correlationId: correlationId
       })
   }
 
   request (payload) {
-      const r = getObject(payload.content.id)
+      // const r = getObject(payload.content.id)
       this.channel.sendToQueue(payload.replyTo,
-        Buffer.from(JSON.stringify(r), 'utf-8'), {
+        Buffer.from(JSON.stringify(payload.content), 'utf-8'), {
           correlationId: payload.correlationId
         })
-        console.log('[.] Sent ', r)
+        console.log('[.] Sent ', payload.content)
   }
 }
 
 function trigger (object) {
-  emmiter.emit('change object', object)
+  emitter.emit(object.id, object)
 }
 
-function updateObj () {
-  object.price = Math.floor(Math.random() * Math.floor(10))
-  trigger(object)
+function updateObjects () {
+  for (cucumber of listCucumbers) {
+    cucumber.price = Math.round(cucumber.id * 10 + Math.random() * 10);
+    trigger(cucumber)
+  }
+
 }
 
 (async function () {
-  setInterval(updateObj, 10000)
-  const rabbit = new Rabbit()
+  setInterval(updateObjects, 5000)
+  const rabbit = new Rabbit(emitter)
   await rabbit.connect(url)
   await rabbit.channelCreate()
   await rabbit.createQueue(rabbit.rpc_queue)
   await rabbit.createQueue(rabbit.change_gueue)
-  const payload = await rabbit.consumeMessage(rabbit.rpc_queue)
+  await rabbit.createQueue(rabbit.ch_gueue);
+  const messageList = await rabbit.consumeMessage(rabbit.rpc_queue)
+  let payload = {} 
+  payload.content = listCucumbers;
+  payload.replyTo = messageList.replyTo;
+  payload.correlationId = messageList.correlationId;
   rabbit.request(payload)
-  emmiter.on('change object', obj =>
-    rabbit.sendChange(obj, payload.correlationId)
+  const messageChange = await rabbit.consumeMessage(rabbit.change_gueue)
+  let object = {};
+  object.id = messageChange.content.id;
+  object.replyTo = messageChange.replyTo;
+  object.correlationId = messageChange.correlationId;
+
+  emitter.on(object.id, obj => 
+    rabbit.sendChange(obj, object.correlationId)
   )
+
+  rabbit.emitter.on('delete', payload => { 
+    emitter.removeAllListeners(object.id)
+    object.id = payload.content.id
+    emitter.on(object.id, obj => 
+      rabbit.sendChange(obj, object.correlationId)
+    )
+  })
 })().catch((err) => {
   console.log(err)
 })
