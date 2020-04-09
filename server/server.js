@@ -88,7 +88,6 @@ class Rabbit {
         }
         console.log('[.] ', payload.content)
         this.emitter.emit('delete', payload)
-        this.emitter.emit('subscribe', payload)
         this.channel.ack(msg)
         resolve(payload)
       })
@@ -151,7 +150,9 @@ function updateObjects () {
 
   rabbit.emitter.on('delete', payload => { 
     emitter.removeAllListeners(object.id)
-    object.id = payload.content.id
+    object.id = payload.content.id;
+    object.replyTo = payload.replyTo;
+    object.correlationId = payload.correlationId;
     emitter.on(object.id, obj => 
       rabbit.sendChange(obj, object.correlationId)
     )
