@@ -34,8 +34,9 @@ class Rabbit {
   connection = null;
   channel = null;
   rpc_queue = 'rpc_queue';
-  change_gueue = 'change_gueue';
-  ch_gueue = 'ch_gueue'
+  change_queue = 'change_queue';
+  ch_queue = 'ch_queue';
+  exchange = 'exchange';
 
 
   constructor (emitter) {
@@ -68,15 +69,27 @@ class Rabbit {
     });
   }
 
-  async createQueue (queue) {
+  async createExchange (exchange) {
     return await new Promise((resolve, reject) => {
-      this.channel.assertQueue(queue, {
+      this.channel.assertExchange(exchange, 'topic', {
         durable: false
       }, (err, q) => {
         if (err) {
+          reject(err)
+        } else {
+          resolve()
+        }
+      })
+    })
+  }
+
+  async createQueue (queue, param) {
+    return await new Promise((resolve, reject) => {
+      this.channel.assertQueue(queue, param, (err, q) => {
+        if (err) {
           reject(err);
         } else {
-          resolve();
+          resolve(q);
         }
       });
     });
@@ -84,15 +97,21 @@ class Rabbit {
 
   consumeMessage (q) {
     this.channel.consume(q, (msg) => {
+      if(msg !== null) {
       console.log('[.] Received ', JSON.parse(msg.content));
-      this.emitter.emit(msg.properties.correlationId, msg.content);
+      this.emitter.emit(msg.properties.correlationId, msg.content);}
     }, { noAck: true });
+  }
+
+  async subscribe (id, q) {
+    this.channel.bindQueue(q.queue, this.exchange, id);
+    this.consumeMessage(q.queue);
   }
 
   async request (payload, q) {
     return await new Promise((resolve, reject) => {
       const correlationId = generateUuid();
-      this.emitter.on(correlationId, data => {
+      this.emitter.once(correlationId, data => {
         resolve(JSON.parse(data));
       });
       this.channel.sendToQueue(
@@ -111,18 +130,24 @@ class Rabbit {
   const rabbit = new Rabbit(emitter);
   await rabbit.connect(url);
   await rabbit.channelCreate();
-  await rabbit.createQueue(rabbit.rpc_queue);
+  await rabbit.createExchange(rabbit.exchange);
+  await rabbit.createQueue(rabbit.rpc_queue, { durable: false});
   rabbit.consumeMessage(rabbit.rpc_queue);
-  await rabbit.createQueue(rabbit.change_gueue);
-  await rabbit.createQueue(rabbit.ch_gueue);
   const result = await rabbit.request('get cucumber', rabbit.rpc_queue);
-  const idSubscriptionCucumber = generateCucumberId(result);
-  rabbit.consumeMessage(rabbit.change_queue);
-  await rabbit.request({id: idSubscriptionCucumber}, rabbit.change_gueue);
   setInterval(async() => {
-    const idSubscriptionCucumber1 = generateCucumberId(result);
-    rabbit.consumeMessage(rabbit.change_queue);
-    await rabbit.request({id: idSubscriptionCucumber1}, rabbit.change_gueue);
+    if(rabbit.change_queue !== null) {
+      // rabbit.change_queue.unbind(rabbit.exchange, rabbit.idChangeObj);
+      rabbit.channel.deleteQueue(rabbit.change_queue);
+    }
+    idChangeObj = String(generateCucumberId(result));
+    const q = await rabbit.createQueue(idChangeObj, 
+      { autoDelete: true, 
+        exclusive: false,
+        durable: false
+    })
+    rabbit.change_queue = q.queue;
+    console.log(idChangeObj)
+    await rabbit.subscribe(idChangeObj, q);
   }, 15000)
 
 })().catch((err) => {

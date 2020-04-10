@@ -30,8 +30,9 @@ class Rabbit {
   connection = null;
   channel = null;
   rpc_queue = 'rpc_queue';
-  change_gueue = 'change_gueue';
-  ch_gueue = 'ch_gueue'
+  change_queue = 'change_queue';
+  ch_queue = 'ch_queue'
+  exchange = 'exchange'
 
   constructor (emitter) {
     this.emitter = emitter
@@ -78,42 +79,49 @@ class Rabbit {
     })
   }
 
-  async consumeMessage (q) {
+  async createExchange (exchange) {
     return await new Promise((resolve, reject) => {
-      this.channel.consume(q, (msg) => {
-        const payload = {
-          replyTo: msg.properties.replyTo,
-          correlationId: msg.properties.correlationId,
-          content: JSON.parse(msg.content)
+      this.channel.assertExchange(exchange, 'topic', {
+        durable: false
+      }, (err, q) => {
+        if (err) {
+          reject(err)
+        } else {
+          resolve()
         }
-        console.log('[.] ', payload.content)
-        this.emitter.emit('delete', payload)
-        this.channel.ack(msg)
-        resolve(payload)
       })
     })
   }
 
-  sendChange (obj, correlationId) {
-    console.log('[.] Sent change ', obj)
-    this.channel.sendToQueue(this.ch_gueue,
-      Buffer.from(JSON.stringify(obj), 'utf-8'), {
-        correlationId: correlationId
+  async consumeMessage (queue) {
+      this.channel.consume(queue, (msg) => {
+      const payload = {
+          replyTo: msg.properties.replyTo,
+          correlationId: msg.properties.correlationId
+        }
+        this.emitter.emit('received message', payload);
+        this.channel.ack(msg) 
       })
   }
 
+  publishChange (obj, id) {
+    // console.log('[.] Publish change ', obj)
+    // console.log(id)
+    this.channel.publish(this.exchange, id,
+      Buffer.from(JSON.stringify(obj), 'utf-8'), )
+  }
+
   request (payload) {
-      // const r = getObject(payload.content.id)
-      this.channel.sendToQueue(payload.replyTo,
-        Buffer.from(JSON.stringify(payload.content), 'utf-8'), {
-          correlationId: payload.correlationId
-        })
-        console.log('[.] Sent ', payload.content)
+        this.channel.sendToQueue(payload.replyTo,
+          Buffer.from(JSON.stringify(payload.content), 'utf-8'), {
+            correlationId: payload.correlationId
+          })
+          console.log('[.] Sent ', payload.content)
   }
 }
 
 function trigger (object) {
-  emitter.emit(object.id, object)
+  emitter.emit('change objects', object)
 }
 
 function updateObjects () {
@@ -130,33 +138,17 @@ function updateObjects () {
   await rabbit.connect(url)
   await rabbit.channelCreate()
   await rabbit.createQueue(rabbit.rpc_queue)
-  await rabbit.createQueue(rabbit.change_gueue)
-  await rabbit.createQueue(rabbit.ch_gueue);
-  const messageList = await rabbit.consumeMessage(rabbit.rpc_queue)
-  let payload = {} 
-  payload.content = listCucumbers;
-  payload.replyTo = messageList.replyTo;
-  payload.correlationId = messageList.correlationId;
-  rabbit.request(payload)
-  const messageChange = await rabbit.consumeMessage(rabbit.change_gueue)
-  let object = {};
-  object.id = messageChange.content.id;
-  object.replyTo = messageChange.replyTo;
-  object.correlationId = messageChange.correlationId;
-
-  emitter.on(object.id, obj => 
-    rabbit.sendChange(obj, object.correlationId)
-  )
-
-  rabbit.emitter.on('delete', payload => { 
-    emitter.removeAllListeners(object.id)
-    object.id = payload.content.id;
-    object.replyTo = payload.replyTo;
-    object.correlationId = payload.correlationId;
-    emitter.on(object.id, obj => 
-      rabbit.sendChange(obj, object.correlationId)
-    )
+  await rabbit.createExchange(rabbit.exchange);
+  await rabbit.consumeMessage(rabbit.rpc_queue);
+  rabbit.emitter.once('received message', payload => {
+    payload.content = listCucumbers;
+    rabbit.request(payload)
   })
+  emitter.on('change objects', obj => {
+    const id = String(obj.id)
+    rabbit.publishChange(obj, id)
+  })
+
 })().catch((err) => {
   console.log(err)
 })
